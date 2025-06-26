@@ -1,16 +1,32 @@
 mod ui;
 mod data;
-mod api;
 mod config;
 
 use anyhow::Result;
+use apca::{ApiInfo, Client};
+use apca::api::v2::account;
 use config::AppConfig;
-use api::ApiConfig;
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    Terminal,
+};
+use std::{io, time::Duration};
+use ui::app::App;
+use std::env;
+use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
+    
+    // Manually load .env file
+    dotenv::dotenv().ok();
     
     println!("🦙 PacaScope - Paper Trading Monitor");
     println!("===================================");
@@ -19,66 +35,132 @@ async fn main() -> Result<()> {
     let app_config = AppConfig::load()?;
     println!("✓ Configuration loaded");
     
-    // Try to load API configuration
-    match ApiConfig::from_env() {
-        Ok(api_config) => {
-            println!("✓ Alpaca API configuration loaded");
-            println!("  - Base URL: {}", api_config.base_url);
-            println!("  - Paper Trading: {}", api_config.paper);
-            
-            // Test API connection
-            if let Err(e) = test_api_connection(&api_config).await {
-                println!("⚠️  API connection test failed: {}", e);
-                println!("   Make sure to copy .env from pacabot directory");
-            } else {
-                println!("✓ API connection test successful");
+    // Try to load API configuration for all strategies
+    println!("\n🔎 Checking API connections for all strategies...");
+    let mut clients = HashMap::new();
+    for strategy_config in &app_config.strategies {
+        print!("  - Strategy '{}': ", strategy_config.name);
+        match load_api_info_for_strategy(strategy_config) {
+            Ok(api_info) => {
+                let client = Client::new(api_info);
+                if let Err(e) = test_api_connection(&client).await {
+                    println!("Connection FAILED. Error: {:#}", e);
+                } else {
+                    println!("Connection OK");
+                    clients.insert(strategy_config.name.clone(), client);
+                }
+            }
+            Err(e) => {
+                 println!("FAILED to load config ({})", e);
             }
         }
-        Err(e) => {
-            println!("⚠️  Alpaca API configuration not found: {}", e);
-            println!("   Create a .env file with your Alpaca API keys:");
-            println!("   ALPACA_API_KEY=your_key_here");
-            println!("   ALPACA_SECRET_KEY=your_secret_here");
-            println!("   ALPACA_PAPER=true");
-        }
     }
+    
+    println!("\n✨ Loading initial account data...");
+    let mut app = App::new(clients);
+    load_initial_data(&mut app).await?;
     
     println!("\n📁 Checking for log files...");
     check_log_files(&app_config)?;
     
     println!("\n🚀 Starting TUI application...");
-    // TODO: Start TUI application
     
-    Ok(())
-}
+    // Setup TUI
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-async fn test_api_connection(config: &ApiConfig) -> Result<()> {
-    let client = reqwest::Client::new();
-    
-    let response = client
-        .get(&format!("{}/v2/account", config.base_url))
-        .header("APCA-API-KEY-ID", &config.api_key)
-        .header("APCA-API-SECRET-KEY", &config.secret_key)
-        .send()
-        .await?;
-    
-    if response.status().is_success() {
-        let account: api::AccountInfo = response.json().await?;
-        println!("  - Account ID: {}", account.id);
-        println!("  - Buying Power: ${}", account.buying_power);
-        println!("  - Day Trades Used: {}", account.daytrade_count);
-    } else {
-        return Err(anyhow::anyhow!("API request failed with status: {}", response.status()));
+    // Create app and run it
+    let res = run_app(&mut terminal, &mut app).await;
+
+    // Restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    if let Err(err) = res {
+        println!("{:?}", err)
     }
     
     Ok(())
 }
 
+fn load_api_info_for_strategy(config: &config::StrategyConfig) -> Result<ApiInfo> {
+    let key_id = env::var(&config.key_id_var)
+        .map_err(|e| anyhow::anyhow!("'{}': {}", &config.key_id_var, e))?;
+
+    let secret_key = env::var(&config.secret_key_var)
+        .map_err(|e| anyhow::anyhow!("'{}': {}", &config.secret_key_var, e))?;
+    
+    // All our strategies are paper trading for now.
+    let url = "https://paper-api.alpaca.markets";
+    
+    Ok(ApiInfo::from_parts(url, key_id, secret_key)?)
+}
+
+async fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> io::Result<()> {
+    while app.running {
+        terminal.draw(|f| ui::render_main_layout(f, &app))?;
+
+        if event::poll(Duration::from_millis(250))? {
+            if let Event::Key(key) = event::read()? {
+                if KeyCode::Char('q') == key.code {
+                    app.quit();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn test_api_connection(client: &Client) -> Result<()> {
+    // This is just a quick test, so we don't print the details anymore.
+    client.issue::<account::Get>(&()).await?;
+    Ok(())
+}
+
+async fn load_initial_data(app: &mut App) -> Result<()> {
+    for (name, client) in &app.clients {
+        print!("  - Fetching data for '{}'... ", name);
+        match client.issue::<account::Get>(&()).await {
+            Ok(account) => {
+                let portfolio_value: f64 = account.equity.to_string().parse().unwrap_or(0.0);
+                let buying_power: f64 = account.buying_power.to_string().parse().unwrap_or(0.0);
+
+                let strategy_data = data::StrategyData {
+                    name: name.clone(),
+                    portfolio_value,
+                    buying_power,
+                    day_trades_used: account.daytrade_count as u32,
+                    day_trades_remaining: 3 - account.daytrade_count as u32, // Simplified
+                    positions: Vec::new(), // TODO
+                    recent_trades: Vec::new(), // TODO
+                    last_updated: chrono::Utc::now(),
+                };
+                app.strategies.insert(name.clone(), strategy_data);
+                println!("OK");
+            }
+            Err(e) => {
+                println!("FAILED. Error: {:#}", e);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_log_files(config: &AppConfig) -> Result<()> {
-    let log_dir = std::path::Path::new(&config.log_paths.log_directory);
+    // This function will need to be refactored to use the new strategy config.
+    // For now, let's just check if the parent log directory exists.
+    let log_dir = std::path::Path::new("../pacabot/logs");
     
     if !log_dir.exists() {
-        println!("⚠️  Log directory not found: {}", config.log_paths.log_directory);
+        println!("⚠️  Log directory not found: {}", log_dir.display());
         println!("   Make sure pacabot is running in the parent directory");
         return Ok(());
     }

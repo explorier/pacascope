@@ -1,15 +1,27 @@
-// The main application state and logic will go here.
+use crate::data::StrategyData;
+use apca::Client;
+use std::collections::HashMap;
+
+/// The main application state.
 pub struct App {
-    // Add application state fields, e.g.,
-    // pub running: bool,
-    // pub active_tab: usize,
+    pub running: bool,
+    pub strategies: HashMap<String, StrategyData>,
+    pub clients: HashMap<String, Client>,
 }
 
 impl App {
-    pub fn new() -> Self {
+    /// Creates a new App.
+    pub fn new(clients: HashMap<String, Client>) -> Self {
         Self {
-            // Initialize state
+            running: true,
+            strategies: HashMap::new(),
+            clients,
         }
+    }
+
+    /// Sets the running flag to false, causing the main loop to exit.
+    pub fn quit(&mut self) {
+        self.running = false;
     }
 
     // Add methods for handling events, updates, etc.

@@ -3,20 +3,20 @@ use serde::{Deserialize, Serialize};
 use anyhow::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppConfig {
-    pub refresh_interval_ms: u64,
-    pub log_paths: LogPaths,
-    pub api: ApiSettings,
-    pub ui: UiSettings,
-    pub alerts: AlertSettings,
+pub struct StrategyConfig {
+    pub name: String,
+    pub key_id_var: String,
+    pub secret_key_var: String,
+    pub log_glob: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogPaths {
-    pub tournament_alpha: String,
-    pub tournament_beta: String,
-    pub pdt_safe: String,
-    pub log_directory: String,
+pub struct AppConfig {
+    pub refresh_interval_ms: u64,
+    pub strategies: Vec<StrategyConfig>,
+    pub api: ApiSettings,
+    pub ui: UiSettings,
+    pub alerts: AlertSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,12 +44,26 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             refresh_interval_ms: 1000, // 1 second
-            log_paths: LogPaths {
-                tournament_alpha: "../pacabot/logs/tournament_alpha_*.log".to_string(),
-                tournament_beta: "../pacabot/logs/tournament_beta_*.log".to_string(),
-                pdt_safe: "../pacabot/logs/pdt_safe_*.log".to_string(),
-                log_directory: "../pacabot/logs".to_string(),
-            },
+            strategies: vec![
+                StrategyConfig {
+                    name: "Alpha".to_string(),
+                    key_id_var: "ALPHA_API_KEY_ID".to_string(),
+                    secret_key_var: "ALPHA_API_SECRET_KEY".to_string(),
+                    log_glob: "../pacabot/logs/tournament_alpha_*.log".to_string(),
+                },
+                StrategyConfig {
+                    name: "Beta".to_string(),
+                    key_id_var: "BETA_API_KEY_ID".to_string(),
+                    secret_key_var: "BETA_API_SECRET_KEY".to_string(),
+                    log_glob: "../pacabot/logs/tournament_beta_*.log".to_string(),
+                },
+                StrategyConfig {
+                    name: "PDT-Safe".to_string(),
+                    key_id_var: "APCA_API_KEY_ID".to_string(),
+                    secret_key_var: "APCA_API_SECRET_KEY".to_string(),
+                    log_glob: "../pacabot/logs/pdt_safe_*.log".to_string(),
+                },
+            ],
             api: ApiSettings {
                 poll_interval_ms: 2000, // 2 seconds
                 timeout_ms: 10000, // 10 seconds
