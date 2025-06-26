@@ -5,8 +5,7 @@ pub mod charts;
 pub mod widgets;
 
 use ratatui::{
-    backend::Backend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Style, Modifier},
     widgets::{Block, Borders, Paragraph, Tabs},
     text::{Span, Line},

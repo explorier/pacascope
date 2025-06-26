@@ -12,7 +12,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    backend::{Backend, CrosstermBackend},
+    backend::{CrosstermBackend},
     Terminal,
 };
 use std::{io, time::Duration};
@@ -154,7 +154,7 @@ async fn load_initial_data(app: &mut App) -> Result<()> {
     Ok(())
 }
 
-fn check_log_files(config: &AppConfig) -> Result<()> {
+fn check_log_files(_config: &AppConfig) -> Result<()> {
     // This function will need to be refactored to use the new strategy config.
     // For now, let's just check if the parent log directory exists.
     let log_dir = std::path::Path::new("../pacabot/logs");

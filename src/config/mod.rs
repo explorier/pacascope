@@ -92,12 +92,4 @@ impl AppConfig {
             Ok(Self::default())
         }
     }
-
-    pub fn save(&self) -> Result<()> {
-        let config_str = toml::to_string_pretty(self)
-            .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?;
-        std::fs::write("pacascope_config.toml", config_str)
-            .map_err(|e| anyhow::anyhow!("Failed to write config file: {}", e))?;
-        Ok(())
-    }
 } 
