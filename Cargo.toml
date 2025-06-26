@@ -2,8 +2,40 @@
 name = "pacascope"
 version = "0.1.0"
 authors = ["explorier <explorier@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# TUI Framework
+ratatui = "0.24"
+crossterm = "0.27"
+
+# Async & Runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = "0.7"
+
+# API & Data
+reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Performance & Concurrency
+dashmap = "5.5"
+parking_lot = "0.12"
+crossbeam = "0.8"
+
+# Utilities
+anyhow = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+config = "0.13"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# File watching (for log monitoring)
+notify = "6.0"
+
+# Environment variables
+dotenv = "0.15"
+toml = "0.8"

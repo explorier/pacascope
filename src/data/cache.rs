@@ -1,0 +1,1 @@
+// In-memory cache for API data and parsed logs. 

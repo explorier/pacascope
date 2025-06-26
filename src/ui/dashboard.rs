@@ -1,0 +1,1 @@
+// The dashboard view, which contains multiple strategy widgets. 
