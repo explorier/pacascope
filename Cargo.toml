@@ -36,6 +36,9 @@ tracing-subscriber = "0.3"
 # File watching (for log monitoring)
 notify = "6.0"
 
+# Alpaca API SDK
+apca = "0.30.0"
+
 # Environment variables
 dotenv = "0.15"
 toml = "0.8"
